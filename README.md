@@ -131,6 +131,12 @@ uv run pytest
 uv run python -m compileall src tests
 ```
 
+## Issue / Pull Request
+
+バグ報告、改善提案、ドキュメント修正、対応データソースの追加などは Issue または Pull Request で歓迎します。自分の研究分野向けに使っていて困った点や、汎用化できそうな設定例があれば気軽に共有してください。
+
+Pull Request を送る場合は、可能な範囲で `uv run pytest` を実行し、個人用の `config.toml`、`.env`、ログ、ダウンロード済み PDF が含まれていないことを確認してください。
+
 ## ライセンス
 
 MIT

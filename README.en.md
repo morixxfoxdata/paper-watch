@@ -141,6 +141,16 @@ uv run pytest
 uv run python -m compileall src tests
 ```
 
+## Issues / Pull Requests
+
+Issues and pull requests are welcome for bug reports, improvements,
+documentation fixes, and additional data source support. If you run into
+problems while adapting Paper Watch to your own research field, or if you have
+configuration examples that would be useful to others, feel free to share them.
+
+Before opening a pull request, please run `uv run pytest` when possible and make
+sure personal `config.toml`, `.env`, logs, and downloaded PDFs are not included.
+
 ## License
 
 MIT
