@@ -1,5 +1,7 @@
 # Paper Watch
 
+[![CI](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml)
+
 [English README](README.en.md)
 
 Paper Watch は、新着論文をローカルで定期監視するための自動化ツールです。

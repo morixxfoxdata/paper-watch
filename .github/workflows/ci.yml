@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Compile Python
+        run: uv run python -m compileall src tests
+
+      - name: Run tests
+        run: uv run pytest
+
+      - name: Validate project metadata and examples
+        run: |
+          uv run python - <<'PY'
+          import pathlib
+          import plistlib
+          import tomllib
+
+          root = pathlib.Path.cwd()
+
+          with (root / "pyproject.toml").open("rb") as f:
+              pyproject = tomllib.load(f)
+          assert pyproject["project"]["name"] == "paper-watch"
+
+          with (root / "config.example.toml").open("rb") as f:
+              config = tomllib.load(f)
+          assert config["profile"]["interests"]
+          assert config["thresholds"]["slack_min"] <= config["thresholds"]["pdf_min"]
+
+          with (root / "examples" / "com.example.paper-watch.plist").open("rb") as f:
+              plist = plistlib.load(f)
+          assert plist["Label"] == "com.example.paper-watch"
+          assert plist["ProgramArguments"]
+          PY
+
+      - name: Health check
+        run: |
+          uv run paper-watch --config config.example.toml --health --json > health.json
+          cat health.json
+          uv run python - <<'PY'
+          import json
+          import pathlib
+
+          health = json.loads(pathlib.Path("health.json").read_text())
+          if health["status"] == "fail":
+              raise SystemExit("paper-watch health check failed")
+          PY

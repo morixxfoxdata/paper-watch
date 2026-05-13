@@ -21,6 +21,7 @@ paper-watch = "paper_watch.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "ruff>=0.8.0",
 ]
 
 [tool.ruff]

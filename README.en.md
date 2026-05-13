@@ -1,5 +1,7 @@
 # Paper Watch
 
+[![CI](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml)
+
 Paper Watch is a local automation tool for monitoring new research papers.
 It collects candidates from arXiv, PubMed, and RSS feeds, asks Claude CLI to
 score their relevance to your research interests, writes JSONL logs, and can
