@@ -1,0 +1,70 @@
+[profile]
+name = "Your research profile"
+output_language = "Japanese"
+interests = [
+  "Ghost Imaging",
+  "Compressive Sensing",
+  "Single-pixel Imaging",
+  "Computational Imaging",
+]
+background = [
+  "Computer Vision",
+  "Image Restoration",
+  "Deep Learning",
+]
+rubric = [
+  "5: Directly related to the core research topic, with new methods, experiments, or datasets.",
+  "4: Important progress in enabling methods, models, theory, or instrumentation.",
+  "3: Relevant adjacent work worth tracking.",
+  "2: Indirectly useful background.",
+  "1: Mostly unrelated.",
+]
+
+[arxiv]
+categories = []
+keywords = [
+  "Ghost Imaging",
+  "Compressive Sensing",
+  "Single-pixel Imaging",
+  "Computational Imaging",
+]
+max_results = 10
+rate_limit_sec = 5
+
+[pubmed]
+enabled = false
+keywords = []
+retmax = 10
+reldate = 7
+email = "you@example.com"
+
+[[rss.feeds]]
+name = "Nature Photonics"
+url = "https://www.nature.com/nphoton.rss"
+
+[[rss.feeds]]
+name = "Optica"
+url = "https://opg.optica.org/optica/RSS.cfm"
+
+[slack]
+enabled = false
+channel = "#paper-watch"
+username = "Paper Watch"
+icon_emoji = ":page_facing_up:"
+
+[claude]
+command = "claude"
+model = "sonnet"
+timeout_sec = 120
+
+[pdf]
+enabled = true
+download_dir = "papers"
+
+[state]
+dir = "~/.local/state/paper-watch"
+processed_max_age_days = 30
+
+[thresholds]
+slack_min = 4
+pdf_min = 5
