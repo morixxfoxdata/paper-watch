@@ -64,6 +64,8 @@ jobs:
           with (root / "config.example.toml").open("rb") as f:
               config = tomllib.load(f)
           assert config["profile"]["interests"]
+          assert config["llm"]["provider"] in {"claude", "codex", "gemini"}
+          assert set(config["llm"]["providers"]) >= {"claude", "codex", "gemini"}
           assert config["thresholds"]["slack_min"] <= config["thresholds"]["pdf_min"]
 
           with (root / "examples" / "com.example.paper-watch.plist").open("rb") as f:

@@ -3,9 +3,10 @@
 [![CI](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/morixxfoxdata/paper-watch/actions/workflows/ci.yml)
 
 Paper Watch is a local automation tool for monitoring new research papers.
-It collects candidates from arXiv, PubMed, and RSS feeds, asks Claude CLI to
-score their relevance to your research interests, writes JSONL logs, and can
-optionally notify Slack or download highly relevant arXiv PDFs.
+It collects candidates from arXiv, PubMed, and RSS feeds, asks Claude CLI,
+Codex CLI, or Gemini CLI to score their relevance to your research interests,
+writes JSONL logs, and can optionally notify Slack or download highly relevant
+arXiv PDFs.
 
 The tool is designed to be adapted by each researcher: your fields, keywords,
 RSS feeds, relevance rubric, thresholds, output language, and Slack destination
@@ -17,7 +18,7 @@ all live in configuration files.
   searches, and journal RSS feeds.
 - Deduplicate paper URLs and keep a processed URL ledger so the same paper is
   not reviewed repeatedly.
-- Evaluate papers with Claude CLI using a configurable researcher profile.
+- Evaluate papers with Claude CLI, Codex CLI, or Gemini CLI using a configurable researcher profile.
 - Save every evaluated paper to dated JSONL logs.
 - Post only relevant papers to Slack when enabled.
 - Download highly relevant arXiv PDFs when enabled.
@@ -27,7 +28,7 @@ all live in configuration files.
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) or another Python environment manager
-- Claude CLI available on `PATH`
+- Claude CLI, Codex CLI, or Gemini CLI available on `PATH`
 - Optional: Slack bot token when Slack notifications are enabled
 
 ## Quick Start
@@ -54,10 +55,10 @@ Then run:
 # Check local configuration and optional integrations
 uv run paper-watch --health
 
-# Collect candidates only; no Claude, no Slack, no PDF download
+# Collect candidates only; no LLM evaluation, no Slack, no PDF download
 uv run paper-watch --collect-only
 
-# Evaluate with Claude, write logs, but do not notify Slack or download PDFs
+# Evaluate with the configured LLM CLI and write logs, but do not notify Slack or download PDFs
 uv run paper-watch --dry-run
 
 # Full run
@@ -86,6 +87,30 @@ background = [
 slack_min = 4
 pdf_min = 5
 ```
+
+Choose the evaluation CLI with `[llm]`.
+
+```toml
+[llm]
+provider = "claude" # claude, codex, or gemini
+timeout_sec = 120
+batch_size = 10
+
+[llm.providers.claude]
+command = "claude"
+model = "sonnet"
+
+[llm.providers.codex]
+command = "codex"
+model = "" # empty means "use the Codex CLI default model"
+
+[llm.providers.gemini]
+command = "gemini"
+model = "auto"
+```
+
+Set provider-specific `args` to override the default command-line arguments.
+`{prompt}` and `{model}` are replaced at runtime.
 
 Set `slack.enabled = false` if you only want local logs.
 

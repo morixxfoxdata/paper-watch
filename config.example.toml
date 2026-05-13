@@ -52,10 +52,24 @@ channel = "#paper-watch"
 username = "Paper Watch"
 icon_emoji = ":page_facing_up:"
 
-[claude]
+[llm]
+provider = "claude" # claude, codex, or gemini
+timeout_sec = 120
+batch_size = 10
+
+[llm.providers.claude]
 command = "claude"
 model = "sonnet"
-timeout_sec = 120
+
+[llm.providers.codex]
+command = "codex"
+# Leave empty to use the user's Codex CLI default model.
+model = ""
+
+[llm.providers.gemini]
+command = "gemini"
+# Gemini CLI also accepts aliases such as "auto", "pro", "flash", and "flash-lite".
+model = "auto"
 
 [pdf]
 enabled = true

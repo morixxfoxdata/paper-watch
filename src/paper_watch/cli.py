@@ -28,6 +28,7 @@ DEFAULT_STATE_DIR = pathlib.Path("~/.local/state/paper-watch")
 ARXIV_NS = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 HEALTH_STATUS_ORDER = {"ok": 0, "warn": 1, "fail": 2}
+SUPPORTED_LLM_PROVIDERS = {"claude", "codex", "gemini"}
 
 
 def now_iso() -> str:
@@ -393,6 +394,94 @@ def build_evaluation_prompt(papers: list[dict[str, Any]], cfg: dict[str, Any], p
     )
 
 
+def llm_config(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Return normalized LLM settings.
+
+    Older releases used a top-level [claude] section. Keep that shape working so
+    existing users can upgrade without immediately editing config.toml.
+    """
+    if "llm" in cfg:
+        return cfg["llm"]
+
+    claude_cfg = cfg.get("claude", {})
+    return {
+        "provider": "claude",
+        "timeout_sec": claude_cfg.get("timeout_sec", 120),
+        "batch_size": claude_cfg.get("batch_size", 10),
+        "providers": {
+            "claude": {
+                "command": claude_cfg.get("command", "claude"),
+                "model": claude_cfg.get("model", "sonnet"),
+            }
+        },
+    }
+
+
+def selected_llm_provider(cfg: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    llm_cfg = llm_config(cfg)
+    provider = str(llm_cfg.get("provider", "claude")).lower()
+    if provider not in SUPPORTED_LLM_PROVIDERS:
+        supported = ", ".join(sorted(SUPPORTED_LLM_PROVIDERS))
+        raise ValueError(f"Unsupported LLM provider '{provider}'. Supported providers: {supported}")
+    provider_cfg = llm_cfg.get("providers", {}).get(provider, {})
+    return provider, llm_cfg, provider_cfg
+
+
+def default_llm_args(provider: str, model: str, prompt: str) -> list[str]:
+    if provider == "claude":
+        args = ["--print", "--output-format", "json"]
+        if model:
+            args.extend(["--model", model])
+        args.append(prompt)
+        return args
+
+    if provider == "codex":
+        args = [
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--ask-for-approval",
+            "never",
+        ]
+        if model:
+            args.extend(["--model", model])
+        args.append(prompt)
+        return args
+
+    if provider == "gemini":
+        args = ["--prompt", prompt, "--output-format", "json"]
+        if model:
+            args.extend(["--model", model])
+        return args
+
+    raise ValueError(f"Unsupported LLM provider '{provider}'")
+
+
+def render_llm_args(args_template: list[Any], model: str, prompt: str) -> list[str]:
+    args: list[str] = []
+    has_prompt = False
+    for item in args_template:
+        rendered = str(item).replace("{model}", model).replace("{prompt}", prompt)
+        if "{prompt}" in str(item):
+            has_prompt = True
+        if rendered:
+            args.append(rendered)
+    if not has_prompt:
+        args.append(prompt)
+    return args
+
+
+def build_llm_command(provider: str, provider_cfg: dict[str, Any], prompt: str) -> list[str]:
+    command = str(provider_cfg.get("command", provider))
+    model = str(provider_cfg.get("model", ""))
+    if "args" in provider_cfg:
+        args = render_llm_args(provider_cfg["args"], model=model, prompt=prompt)
+    else:
+        args = default_llm_args(provider, model=model, prompt=prompt)
+    return [command, *args]
+
+
 def evaluate_papers(
     papers: list[dict[str, Any]],
     cfg: dict[str, Any],
@@ -401,33 +490,35 @@ def evaluate_papers(
     if not papers:
         return []
 
-    claude_cfg = cfg.get("claude", {})
-    command = str(claude_cfg.get("command", "claude"))
-    model = str(claude_cfg.get("model", "sonnet"))
-    timeout = int(claude_cfg.get("timeout_sec", 120))
+    try:
+        provider, llm_cfg, provider_cfg = selected_llm_provider(cfg)
+    except ValueError as exc:
+        logging.error("%s", exc)
+        provider, llm_cfg, provider_cfg = "claude", {"timeout_sec": 120, "batch_size": 10}, {}
+    timeout = int(llm_cfg.get("timeout_sec", 120))
     results: list[dict[str, Any]] = []
-    batch_size = int(claude_cfg.get("batch_size", 10))
+    batch_size = int(llm_cfg.get("batch_size", 10))
 
     for batch_start in range(0, len(papers), batch_size):
         batch = papers[batch_start : batch_start + batch_size]
         full_prompt = build_evaluation_prompt(batch, cfg, prompt_path)
-        cmd = [command, "--print", "--output-format", "json", "--model", model, full_prompt]
+        cmd = build_llm_command(provider, provider_cfg, full_prompt)
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
         except subprocess.TimeoutExpired:
-            logging.error("Claude CLI timed out for batch %d", batch_start // batch_size)
+            logging.error("%s CLI timed out for batch %d", provider, batch_start // batch_size)
             continue
         except Exception as exc:
-            logging.error("Claude CLI evaluation failed: %s", exc)
+            logging.error("%s CLI evaluation failed: %s", provider, exc)
             continue
 
         if result.returncode != 0:
-            logging.error("Claude CLI failed (rc=%d): %s", result.returncode, result.stderr[:500])
+            logging.error("%s CLI failed (rc=%d): %s", provider, result.returncode, result.stderr[:500])
             continue
         try:
-            results.extend(parse_claude_json(result.stdout))
+            results.extend(parse_llm_json(result.stdout))
         except ValueError as exc:
-            logging.error("Claude output parse failed: %s", exc)
+            logging.error("%s output parse failed: %s", provider, exc)
 
     result_by_url = {result["url"]: result for result in results if "url" in result}
     for paper in papers:
@@ -439,24 +530,50 @@ def evaluate_papers(
     return papers
 
 
-def parse_claude_json(stdout: str) -> list[dict[str, Any]]:
+def parse_llm_json(stdout: str) -> list[dict[str, Any]]:
     try:
         outer = json.loads(stdout)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"stdout is not JSON: {stdout[:200]}") from exc
+        match = re.search(r"\[.*\]", stdout, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        raise ValueError(f"stdout does not contain a JSON array: {stdout[:200]}") from exc
 
     if isinstance(outer, list):
         return outer
     if isinstance(outer, dict):
-        inner = outer.get("result", outer.get("content", ""))
+        inner = first_text_value(outer, keys=("result", "response", "content", "text", "output", "message"))
         if isinstance(inner, list):
-            return inner
+            if all(isinstance(item, dict) and "url" in item for item in inner):
+                return inner
+            for item in inner:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    match = re.search(r"\[.*\]", item["text"], re.DOTALL)
+                    if match:
+                        return json.loads(match.group(0))
         if not isinstance(inner, str):
-            raise ValueError("Claude JSON does not contain a text result")
+            raise ValueError("LLM JSON does not contain a text result")
         match = re.search(r"\[.*\]", inner, re.DOTALL)
         if match:
             return json.loads(match.group(0))
-    raise ValueError("No JSON array found in Claude output")
+    raise ValueError("No JSON array found in LLM output")
+
+
+def parse_claude_json(stdout: str) -> list[dict[str, Any]]:
+    return parse_llm_json(stdout)
+
+
+def first_text_value(data: dict[str, Any], keys: tuple[str, ...]) -> str | list[Any] | None:
+    for key in keys:
+        value = data.get(key)
+        if value:
+            return value
+    for value in data.values():
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, list) and value:
+            return value
+    return None
 
 
 def append_log(papers: list[dict[str, Any]], cfg: dict[str, Any]) -> pathlib.Path:
@@ -659,12 +776,17 @@ def run_health(config_path: pathlib.Path, prompt_path: pathlib.Path, cfg: dict[s
     else:
         checks.extend(run_config_health(cfg))
 
-    command = cfg.get("claude", {}).get("command", "claude") if cfg else "claude"
-    claude_path = shutil.which(str(command))
-    if claude_path:
-        checks.append(health_item("claude_cli", "ok", f"{command} found at {claude_path}"))
-    else:
-        checks.append(health_item("claude_cli", "warn", f"{command} not found in PATH"))
+    if cfg:
+        try:
+            provider, _, provider_cfg = selected_llm_provider(cfg)
+            command = str(provider_cfg.get("command", provider))
+            command_path = shutil.which(command)
+            if command_path:
+                checks.append(health_item("llm_cli", "ok", f"{provider} command found at {command_path}"))
+            else:
+                checks.append(health_item("llm_cli", "warn", f"{provider} command '{command}' not found in PATH"))
+        except ValueError as exc:
+            checks.append(health_item("llm_cli", "fail", str(exc)))
 
     if cfg and cfg.get("slack", {}).get("enabled", False):
         checks.append(run_slack_health())
