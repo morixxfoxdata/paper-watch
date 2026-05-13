@@ -1,34 +1,30 @@
 # Paper Watch
 
-Paper Watch is a local automation tool for monitoring new research papers.
-It collects candidates from arXiv, PubMed, and RSS feeds, asks Claude CLI to
-score their relevance to your research interests, writes JSONL logs, and can
-optionally notify Slack or download highly relevant arXiv PDFs.
+[English README](README.en.md)
 
-The tool is designed to be adapted by each researcher: your fields, keywords,
-RSS feeds, relevance rubric, thresholds, output language, and Slack destination
-all live in configuration files.
+Paper Watch は、新着論文をローカルで定期監視するための自動化ツールです。
+arXiv、PubMed、RSS フィードから候補論文を集め、Claude CLI で自分の研究関心との関連度を評価し、JSONL ログに保存します。必要に応じて Slack 通知や、高関連度の arXiv PDF ダウンロードも行えます。
 
-## Features
+研究分野、検索キーワード、RSS フィード、関連度の評価基準、通知閾値、出力言語、Slack の投稿先は設定ファイルで差し替えられます。各研究者が自分の分野向けに調整して使うことを想定しています。
 
-- Collect papers from arXiv categories, arXiv keyword searches, PubMed keyword
-  searches, and journal RSS feeds.
-- Deduplicate paper URLs and keep a processed URL ledger so the same paper is
-  not reviewed repeatedly.
-- Evaluate papers with Claude CLI using a configurable researcher profile.
-- Save every evaluated paper to dated JSONL logs.
-- Post only relevant papers to Slack when enabled.
-- Download highly relevant arXiv PDFs when enabled.
-- Run manually, from cron, or from launchd on macOS.
+## 機能
 
-## Requirements
+- arXiv カテゴリ検索、arXiv キーワード検索、PubMed キーワード検索、ジャーナル RSS から論文候補を収集
+- URL の重複排除と処理済み台帳による再評価の抑制
+- 設定可能な研究者プロフィールを使った Claude CLI による関連度評価
+- 評価済み論文を日付別 JSONL ログに保存
+- Slack 有効時のみ、関連度の高い論文を通知
+- PDF ダウンロード有効時のみ、高関連度の arXiv PDF を保存
+- 手動実行、cron、macOS launchd に対応
+
+## 必要なもの
 
 - Python 3.11+
-- [uv](https://docs.astral.sh/uv/) or another Python environment manager
-- Claude CLI available on `PATH`
-- Optional: Slack bot token when Slack notifications are enabled
+- [uv](https://docs.astral.sh/uv/) または任意の Python 環境管理ツール
+- `PATH` 上で実行できる Claude CLI
+- 任意: Slack 通知を使う場合は Slack bot token
 
-## Quick Start
+## クイックスタート
 
 ```bash
 git clone https://github.com/morixxfoxdata/paper-watch.git
@@ -38,34 +34,33 @@ cp config.example.toml config.toml
 cp .env.example .env
 ```
 
-Edit `config.toml` for your research field. At minimum, update:
+`config.toml` を自分の研究分野に合わせて編集します。最低限、次を確認してください。
 
-- `[profile]`: your interests, background, and relevance rubric
-- `[arxiv]`: categories and keywords
-- `[pubmed]`: keywords and contact email if you use PubMed
-- `[[rss.feeds]]`: journal or conference feeds
-- `[slack]`: enable and set a channel only if you want Slack notifications
+- `[profile]`: 関心分野、背景知識、関連度評価基準
+- `[arxiv]`: arXiv のカテゴリとキーワード
+- `[pubmed]`: PubMed を使う場合のキーワードと連絡先メール
+- `[[rss.feeds]]`: 監視したいジャーナルやカンファレンスの RSS
+- `[slack]`: Slack 通知を使う場合のみ有効化し、投稿先チャンネルを設定
 
-Then run:
+実行例:
 
 ```bash
-# Check local configuration and optional integrations
+# 設定と任意連携の確認
 uv run paper-watch --health
 
-# Collect candidates only; no Claude, no Slack, no PDF download
+# 候補収集のみ。Claude 評価、Slack 通知、PDF 保存は行わない
 uv run paper-watch --collect-only
 
-# Evaluate with Claude, write logs, but do not notify Slack or download PDFs
+# Claude 評価とログ保存まで実行。Slack 通知と PDF 保存は行わない
 uv run paper-watch --dry-run
 
-# Full run
+# 通常実行
 uv run paper-watch
 ```
 
-## Configuration
+## 設定
 
-The default search behavior is intentionally controlled by `config.toml`.
-Do not edit the prompt or Python code just to change fields.
+検索対象や評価方針は `config.toml` で管理します。分野を変えるだけなら、プロンプトや Python コードを直接編集する必要はありません。
 
 ```toml
 [profile]
@@ -85,29 +80,27 @@ slack_min = 4
 pdf_min = 5
 ```
 
-Set `slack.enabled = false` if you only want local logs.
+ローカルログだけでよい場合は、`slack.enabled = false` にしてください。
 
-Secrets are read from the environment. If you use `.env`, `run.sh` loads it
-before starting Paper Watch.
+秘密情報は環境変数から読み込みます。`.env` を使う場合、`run.sh` が起動時に読み込みます。
 
 ```bash
 SLACK_BOT_TOKEN=replace-with-your-slack-bot-token
 ```
 
-## Output
+## 出力
 
-Paper Watch stores state and logs under the configured state directory
-(`~/.local/state/paper-watch` by default):
+Paper Watch は、設定された state directory に状態とログを保存します。デフォルトは `~/.local/state/paper-watch` です。
 
-- `processed.jsonl`: URLs already processed
-- `YYYYMMDD.jsonl`: evaluated papers for each run date
-- `launchd.out.log` and `launchd.err.log`: useful if you schedule via launchd
+- `processed.jsonl`: 処理済み URL の台帳
+- `YYYYMMDD.jsonl`: 実行日ごとの評価済み論文ログ
+- `launchd.out.log` / `launchd.err.log`: launchd で定期実行する場合のログ
 
-Downloaded PDFs are saved under `pdf.download_dir`.
+ダウンロードした PDF は `pdf.download_dir` に保存されます。
 
-## Scheduling
+## 定期実行
 
-For macOS launchd, copy the template and replace placeholders:
+macOS launchd を使う場合は、テンプレートをコピーしてプレースホルダを置き換えます。
 
 ```bash
 cp examples/com.example.paper-watch.plist ~/Library/LaunchAgents/com.example.paper-watch.plist
@@ -116,24 +109,21 @@ plutil -replace WorkingDirectory -string "$PWD" ~/Library/LaunchAgents/com.examp
 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.example.paper-watch.plist
 ```
 
-The template runs weekly on Monday at 07:00. Edit `StartCalendarInterval` if you
-want a different schedule.
+テンプレートは毎週月曜 07:00 に実行する設定です。別の時刻にしたい場合は `StartCalendarInterval` を編集してください。
 
-For cron, use:
+cron を使う場合:
 
 ```cron
 0 7 * * 1 cd /path/to/paper-watch && ./run.sh
 ```
 
-## Safety Notes
+## 公開・運用時の注意
 
-- Keep `.env`, `config.toml`, logs, downloaded PDFs, and local state out of Git.
-- Public repositories should commit `config.example.toml`, not personal
-  `config.toml`.
-- PubMed asks API users to provide an email address; set your own in
-  `config.toml`.
+- `.env`、`config.toml`、ログ、ダウンロード済み PDF、ローカル state は Git に含めないでください。
+- 公開リポジトリには個人用の `config.toml` ではなく、`config.example.toml` を置いてください。
+- PubMed API を使う場合は、自分のメールアドレスを `config.toml` に設定してください。
 
-## Development
+## 開発
 
 ```bash
 uv sync --group dev
@@ -141,6 +131,6 @@ uv run pytest
 uv run python -m compileall src tests
 ```
 
-## License
+## ライセンス
 
 MIT
